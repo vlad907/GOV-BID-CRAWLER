@@ -1,0 +1,5 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+selenium>=4.25
+beautifulsoup4>=4.12
+pydantic-settings>=2.6
