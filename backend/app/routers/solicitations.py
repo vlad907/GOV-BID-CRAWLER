@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +26,7 @@ def list_solicitations(
     is_sdvosb: Optional[bool] = None,
     nsn: Optional[str] = None,
     q: Optional[str] = None,
+    active_only: bool = False,
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Solicitation)
@@ -37,10 +39,14 @@ def list_solicitations(
     if nsn:
         query = query.filter(models.Solicitation.nsn.contains(nsn))
     if q:
-        like = f"%{q}%"
         query = query.filter(
             (models.Solicitation.title.contains(q))
             | (models.Solicitation.description.contains(q))
+        )
+    if active_only:
+        query = query.filter(
+            (models.Solicitation.close_date.is_(None))
+            | (models.Solicitation.close_date >= datetime.utcnow())
         )
     results = query.order_by(models.Solicitation.created_at.desc()).all()
     return [_to_out(s) for s in results]

@@ -82,6 +82,7 @@ export interface SolicitationFilters {
   is_sdvosb?: boolean;
   nsn?: string;
   q?: string;
+  active_only?: boolean;
 }
 
 export const api = {

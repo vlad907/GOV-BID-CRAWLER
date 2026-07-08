@@ -33,10 +33,12 @@ FSC_GROUPS: dict[str, list[str]] = {
            "5975", "5985", "5995", "5999"],
     "61": ["6105", "6110", "6145", "6150"],
 }
-DEFAULT_FSC_SWEEP = FSC_GROUPS["53"] + FSC_GROUPS["31"] + FSC_GROUPS["59"]
+# Default sweep kept small so the no-filter crawl finishes in ~30s; pass a
+# fsc_list or classification_code for more targeted/deeper coverage.
+DEFAULT_FSC_SWEEP = FSC_GROUPS["53"]
 
 # Pause between fanned-out queries - keep the footprint polite.
-SWEEP_DELAY_SECONDS = 1.0
+SWEEP_DELAY_SECONDS = 0.5
 
 # One consented session reused across jobs - the consent handshake only
 # happens once per process lifetime.
@@ -74,7 +76,7 @@ def run(params: dict[str, Any]) -> dict[str, Any]:
     fsc = params.get("fsc")
     classification_code = str(params.get("classification_code") or "")
     posted_date = params.get("posted_date")
-    days = int(params.get("days") or 3)
+    days = int(params.get("days") or 2)
     fsc_list = params.get("fsc_list")
 
     if nsn:

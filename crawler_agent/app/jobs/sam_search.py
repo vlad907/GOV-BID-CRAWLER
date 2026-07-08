@@ -10,6 +10,7 @@ publishDate, descriptions[].content (HTML), _id; page.totalElements.
 Detail page: https://sam.gov/opp/<_id>/view
 """
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -79,6 +80,18 @@ def run(params: dict[str, Any]) -> dict[str, Any]:
             break
 
         for r in results:
+            # SAM marks some notices "active" whose response deadline has
+            # long passed (e.g. standing Multiple Award Schedules) - skip
+            # anything no longer biddable.
+            response_date = r.get("responseDate")
+            if response_date:
+                try:
+                    deadline = datetime.fromisoformat(response_date.replace("Z", "+00:00"))
+                    if deadline < datetime.now(timezone.utc):
+                        continue
+                except ValueError:
+                    pass
+
             descriptions = r.get("descriptions") or []
             description = _strip_html(descriptions[0].get("content")) if descriptions else None
             opp_id = r.get("_id")
