@@ -135,3 +135,13 @@ default Chrome profile and colliding with your actual browser). If it still
 happens: check for orphaned Chrome/chromedriver processes (`ps aux | grep
 chrome_profile`) and kill them, and confirm `CHROME_PROFILE_DIR` (if you've
 overridden it in `.env`) is an absolute path.
+
+## Troubleshooting: empty error message with a raw native stack trace
+
+On Linux this usually means Chrome's renderer process crashed outright
+rather than raising a normal Selenium exception - most commonly because
+`/dev/shm` (a small dedicated shared-memory partition, independent of total
+system RAM) is too small on a fresh VM/mini PC. `app/browser.py` already
+passes `--disable-dev-shm-usage` to work around this. If it still happens,
+check `df -h /dev/shm` and `dmesg | tail -50` for OOM-killer or crash
+entries right after submitting a job.

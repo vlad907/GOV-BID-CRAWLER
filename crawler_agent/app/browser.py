@@ -43,6 +43,11 @@ def get_driver() -> webdriver.Chrome:
             options.add_argument("--disable-blink-features=AutomationControlled")
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option("useAutomationExtension", False)
+            # /dev/shm is often tiny on fresh Linux VMs/mini PCs regardless of
+            # total system RAM, and Chrome's renderer process crashes hard
+            # (with no useful error message) when it runs out of that shared
+            # memory. Harmless no-op on macOS. See crawler_agent/README.md.
+            options.add_argument("--disable-dev-shm-usage")
             _driver = webdriver.Chrome(options=options)
             _driver.set_page_load_timeout(settings.page_load_timeout_seconds)
         return _driver

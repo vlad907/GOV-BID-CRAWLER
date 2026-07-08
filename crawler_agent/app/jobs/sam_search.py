@@ -1,21 +1,20 @@
 """Searches SAM.gov's public opportunity search (no account/API key) by
 keyword, NAICS, PSC/FSC classification code, and/or set-aside type.
 
-See app/selectors.py and the README for why these selectors are best-effort -
-sam.gov/search is a client-rendered SPA, and its DOM was not verified live
-while building this.
+Deliberately loose rather than exactly selector-driven (see extraction.py) -
+sam.gov/search is a client-rendered SPA whose internal markup we can't
+inspect ahead of time, but its opportunity detail links all follow a stable
+`/opp/<id>/view` URL shape regardless of the surrounding card markup, so we
+scan for that instead of guessing CSS classes.
 """
+import re
+import time
 from typing import Any
 from urllib.parse import urlencode
 
-from bs4 import BeautifulSoup
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-
 from ..browser import get_driver
 from ..config import settings
-from ..selectors import SAM_GOV
+from ..extraction import scan_for_links_matching
 
 SET_ASIDE_QUERY_CODES = {
     "SDVOSB": "SDVOSBC",
@@ -25,9 +24,7 @@ SET_ASIDE_QUERY_CODES = {
     "8A": "8A",
 }
 
-
-def _text(el) -> str | None:
-    return el.get_text(strip=True) if el else None
+OPPORTUNITY_LINK_PATTERN = re.compile(r"^/opp/[^/]+/view")
 
 
 def run(params: dict[str, Any]) -> dict[str, Any]:
@@ -49,43 +46,15 @@ def run(params: dict[str, Any]) -> dict[str, Any]:
         )
 
     driver = get_driver()
-    wait = WebDriverWait(driver, settings.page_load_timeout_seconds)
-
     driver.get(f"{settings.sam_gov_base_url}/search/?{urlencode(query)}")
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, SAM_GOV["result_card"])))
-    soup = BeautifulSoup(driver.page_source, "html.parser")
+    time.sleep(5)  # SPA needs a moment to fetch results and render them
 
-    items = []
-    for card in soup.select(SAM_GOV["result_card"]):
-        solicitation_id = _text(card.select_one(SAM_GOV["result_solicitation_id"]))
-        if not solicitation_id:
-            continue
-
-        link_el = card.select_one(SAM_GOV["result_link"])
-        href = link_el.get("href") if link_el else None
-        raw_url = (
-            f"{settings.sam_gov_base_url}{href}"
-            if href and href.startswith("/")
-            else href
-        )
-
-        set_aside_text = _text(card.select_one(SAM_GOV["result_set_aside"]))
-        is_sdvosb = bool(set_aside_text and "SERVICE-DISABLED VETERAN" in set_aside_text.upper())
-
-        items.append(
-            {
-                "solicitation_id": solicitation_id,
-                "nsn": None,
-                "title": _text(card.select_one(SAM_GOV["result_title"])),
-                "description": None,
-                "qty": None,
-                "naics_code": _text(card.select_one(SAM_GOV["result_naics"])),
-                "set_aside_type": set_aside_text,
-                "is_sdvosb": is_sdvosb,
-                "close_date": _text(card.select_one(SAM_GOV["result_close_date"])),
-                "raw_url": raw_url,
-                "specs": {},
-            }
-        )
+    items = scan_for_links_matching(
+        driver.page_source, settings.sam_gov_base_url, OPPORTUNITY_LINK_PATTERN
+    )
+    for item in items:
+        item["naics_code"] = naics_code
+        item["set_aside_type"] = set_aside_type
+        item["is_sdvosb"] = bool(set_aside_type and set_aside_type.upper() == "SDVOSB")
 
     return {"items": items}

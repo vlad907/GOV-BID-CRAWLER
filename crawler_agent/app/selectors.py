@@ -12,27 +12,12 @@ DIBBS = {
     # RFQ search form (dibbs.bsm.dla.mil/RFQ/)
     "search_input": "input#txtSearch, input[name='ttype']",
     "search_submit": "input[type='submit'][value*='Search'], button[type='submit']",
-    # Results table rows
-    "result_row": "table.rfq-results tr, table#gvResults tr",
-    "result_nsn": ".nsn, td:nth-child(2)",
-    "result_title": ".description, td:nth-child(3)",
-    "result_solicitation_id": ".solicitation-number, td:nth-child(1)",
-    "result_qty": ".qty, td:nth-child(4)",
-    "result_close_date": ".close-date, td:nth-child(5)",
-    "result_link": "a",
 }
-
-SAM_GOV = {
-    # sam.gov's opportunity search is a client-rendered SPA - Selenium waits
-    # for result cards to actually appear in the DOM after JS runs.
-    "result_card": "ct-app-search-result, .usa-card, li[data-notice-id]",
-    "result_solicitation_id": ".notice-id, .solicitation-number",
-    "result_title": "h3, .card-title, a.title-link",
-    "result_naics": ".naics",
-    "result_set_aside": ".set-aside, .type-of-set-aside",
-    "result_close_date": ".response-date, .deadline",
-    "result_link": "a",
-}
+# Result extraction for both DIBBS and SAM.gov no longer uses selectors at
+# all - see extraction.py. Guessing exact CSS classes for either site's
+# results wasn't reliable without being able to inspect the live DOM, so
+# instead we scan the rendered page for recognizable patterns (NSN format,
+# SAM.gov's stable /opp/<id>/view URLs) regardless of surrounding markup.
 
 NSN_MARKETPLACE = {
     "search_input": "input[name='nsn'], input#nsn-search",
