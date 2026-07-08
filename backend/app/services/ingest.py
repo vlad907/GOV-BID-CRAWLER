@@ -16,11 +16,14 @@ def ingest_solicitation_search(db: Session, source: str, result: dict[str, Any])
         if not solicitation_id:
             continue
 
+        # One DIBBS solicitation can cover many NSNs - keep a row per
+        # (solicitation, NSN) pair rather than collapsing them.
         existing = (
             db.query(models.Solicitation)
             .filter(
                 models.Solicitation.source == source,
                 models.Solicitation.solicitation_id == solicitation_id,
+                models.Solicitation.nsn == item.get("nsn"),
             )
             .first()
         )

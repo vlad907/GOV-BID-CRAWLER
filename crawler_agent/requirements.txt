@@ -3,3 +3,4 @@ uvicorn[standard]>=0.32
 selenium>=4.25
 beautifulsoup4>=4.12
 pydantic-settings>=2.6
+requests>=2.32
