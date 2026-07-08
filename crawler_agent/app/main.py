@@ -4,11 +4,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .job_queue import job_queue
-from .jobs import dibbs_search, nsn_marketplace, sam_search
-
-job_queue.register("dibbs_search", dibbs_search.run)
-job_queue.register("sam_search", sam_search.run)
-job_queue.register("nsn_marketplace", nsn_marketplace.run)
 
 app = FastAPI(title="Crawler Agent")
 

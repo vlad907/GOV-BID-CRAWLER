@@ -4,6 +4,7 @@ Kept as a single long-lived window rather than spinning up/tearing down a
 browser per job: fewer process launches looks less like a bot, and it's
 faster once warm.
 """
+import os
 import threading
 
 from selenium import webdriver
@@ -14,11 +15,28 @@ from .config import settings
 _driver: webdriver.Chrome | None = None
 _lock = threading.Lock()
 
+# Chrome refuses to start against a profile dir it thinks is already in use,
+# and reports that as an opaque "Chrome instance exited" session-creation
+# failure rather than a clear "profile locked" error. If this process (or a
+# previous crashed/killed run of it) left one of these behind, Chrome will
+# never get past that check on its own - clear them before every launch
+# attempt. Safe here because this profile dir is dedicated to this one
+# service; nothing else should ever be using it concurrently.
+_SINGLETON_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+
+
+def _clear_stale_singleton_files() -> None:
+    for name in _SINGLETON_FILES:
+        path = os.path.join(settings.chrome_profile_dir, name)
+        if os.path.islink(path) or os.path.exists(path):
+            os.remove(path)
+
 
 def get_driver() -> webdriver.Chrome:
     global _driver
     with _lock:
         if _driver is None:
+            _clear_stale_singleton_files()
             options = Options()
             # Deliberately NOT headless - see README for why.
             options.add_argument(f"--user-data-dir={settings.chrome_profile_dir}")

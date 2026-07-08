@@ -110,3 +110,18 @@ first thing to do on a real run is:
 - `dibbs_search` — `{"nsn": "...", "keyword": "..."}` → list of open RFQs
 - `sam_search` — `{"keyword": "...", "naics_code": "...", "classification_code": "...", "set_aside_type": "..."}` → list of open solicitations
 - `nsn_marketplace` — `{"nsn": "..."}` → list of candidate suppliers/listings
+
+## Troubleshooting: "session not created: Chrome instance exited"
+
+If you ever see this error, it almost always means Chrome tried to open
+against a profile directory it thinks is already locked - either a genuinely
+open instance, or stale `SingletonLock`/`SingletonCookie`/`SingletonSocket`
+files left behind by a killed process. `app/browser.py` clears those files
+before every launch and `CHROME_PROFILE_DIR` defaults to an absolute path
+specifically to avoid this (a relative path can resolve against an
+unexpected working directory once Chrome is launched through
+chromedriver/subprocess indirection, silently falling back to your **real**
+default Chrome profile and colliding with your actual browser). If it still
+happens: check for orphaned Chrome/chromedriver processes (`ps aux | grep
+chrome_profile`) and kill them, and confirm `CHROME_PROFILE_DIR` (if you've
+overridden it in `.env`) is an absolute path.
