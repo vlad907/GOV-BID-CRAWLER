@@ -12,40 +12,50 @@ Recommended OS for the dedicated crawler machine — see the top-level
 `README.md` for why (real Chrome inside a virtual display, no GUI-session
 dependency, survives reboots via systemd).
 
-```bash
-# Chrome
-sudo apt update
-sudo apt install -y wget gnupg xvfb x11vnc python3-venv python3-pip
-wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-sudo apt update && sudo apt install -y google-chrome-stable
+**Quickest path:** clone this repo on the Ubuntu box and run the setup
+script — it installs Chrome/Xvfb/x11vnc/Python deps (skipping anything
+already done, safe to re-run) and drops you straight into a running agent
+with VNC ready for the selector-tuning pass below:
 
-# app
-cd crawler_agent
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+```bash
+git clone https://github.com/vlad907/GOV-BID-CRAWLER.git
+cd GOV-BID-CRAWLER/crawler_agent
+./setup_ubuntu.sh
 ```
 
 Selenium Manager (bundled since Selenium 4.25+) auto-resolves a matching
 `chromedriver` for whatever Chrome version is installed — no manual driver
 download needed.
 
-## Running by hand (for the first selector-tuning pass)
-
-Xvfb has no physical monitor, so to actually *watch* Chrome while you tune
-the selectors in `app/selectors.py`, run `x11vnc` alongside it and connect
-with any VNC viewer from your main machine:
+<details>
+<summary>Manual steps (what the script above does, if you want to run them yourself)</summary>
 
 ```bash
+sudo apt update
+sudo apt install -y wget gnupg xvfb x11vnc python3-venv python3-pip
+wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+sudo apt update && sudo apt install -y google-chrome-stable
+
+cd crawler_agent
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
 Xvfb :99 -screen 0 1920x1080x24 &
 x11vnc -display :99 -forever -nopw &
 DISPLAY=:99 uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
-Then VNC to `<crawler-machine-ip>:5900` while you submit test jobs (see
-below) — you'll see the real Chrome window and can compare it against the
-selectors live.
+</details>
+
+## Running by hand (for the first selector-tuning pass)
+
+`setup_ubuntu.sh` already leaves Xvfb + x11vnc + the agent running. VNC to
+`<crawler-machine-ip>:5900` from your main machine (on a Mac: Finder → Go →
+Connect to Server → `vnc://<ip>:5900`) while you submit test jobs (see
+below) — you'll see the real Chrome window and can compare it against
+`app/selectors.py`.
 
 ## Running for real (systemd, no monitor needed after tuning)
 
