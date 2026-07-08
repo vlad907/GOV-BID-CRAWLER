@@ -34,6 +34,9 @@ export default function SolicitationsPage() {
   const [solicitations, setSolicitations] = useState<Solicitation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bulkSuppliers, setBulkSuppliers] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const bulkStartRef = useRef<number>(0);
 
   const load = async () => {
     setLoading(true);
@@ -101,6 +104,41 @@ export default function SolicitationsPage() {
     }
   };
 
+  const findSuppliersBulk = async () => {
+    setBulkSuppliers(true);
+    bulkStartRef.current = Date.now();
+    setBulkMessage("Looking up manufacturers/suppliers for pulled solicitations…");
+    try {
+      const { job_id, params } = await api.findSuppliersBulk({
+        source: browseSource || undefined,
+        is_sdvosb: browseSdvosbOnly ? true : undefined,
+        active_only: browseActiveOnly,
+        only_missing: true,
+      });
+      const targetCount = params?.target_count ?? 0;
+
+      const poll = async (): Promise<void> => {
+        const job = await api.getCrawlJob(job_id);
+        const secs = Math.round((Date.now() - bulkStartRef.current) / 1000);
+        if (job.status === "done") {
+          setBulkMessage(`Supplier lookup finished in ${secs}s across ${targetCount} solicitations. Open one to see its matches.`);
+          setBulkSuppliers(false);
+          await load();
+        } else if (job.status === "error") {
+          setBulkMessage(`Supplier lookup failed after ${secs}s: ${job.error}`);
+          setBulkSuppliers(false);
+        } else {
+          setBulkMessage(`Looking up suppliers for ${targetCount} solicitations… ${secs}s elapsed`);
+          setTimeout(poll, 2000);
+        }
+      };
+      await poll();
+    } catch (err) {
+      setBulkMessage(err instanceof Error ? err.message : String(err));
+      setBulkSuppliers(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* ---------- 1. PULL ---------- */}
@@ -160,10 +198,21 @@ export default function SolicitationsPage() {
 
       {/* ---------- 2. BROWSE ---------- */}
       <section className="border border-neutral-800 rounded-lg p-4 flex flex-col gap-3">
-        <div>
-          <h2 className="font-medium">2. Browse pulled solicitations ({solicitations.length})</h2>
-          <p className="text-xs text-neutral-500">Filters what&apos;s already saved locally — doesn&apos;t touch the live sites.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-medium">2. Browse pulled solicitations ({solicitations.length})</h2>
+            <p className="text-xs text-neutral-500">Filters what&apos;s already saved locally — doesn&apos;t touch the live sites.</p>
+          </div>
+          <button
+            onClick={findSuppliersBulk}
+            disabled={bulkSuppliers || solicitations.length === 0}
+            className="shrink-0 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white px-3 py-2 rounded text-sm"
+            title="Look up manufacturers/CAGE codes for every filtered solicitation that doesn't have suppliers yet"
+          >
+            {bulkSuppliers ? "Finding suppliers…" : "Find suppliers (bulk)"}
+          </button>
         </div>
+        {bulkMessage && <p className="text-sm text-neutral-400">{bulkMessage}</p>}
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
             <label className={labelCls}>Source</label>

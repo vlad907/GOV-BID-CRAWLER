@@ -108,6 +108,17 @@ export const api = {
   getCrawlJob: (jobId: string) => request<{ status: string; result?: unknown; error?: string }>(
     `/api/crawl-jobs/${jobId}`
   ),
+  findSuppliersBulk: (payload: {
+    source?: string;
+    is_sdvosb?: boolean;
+    active_only?: boolean;
+    only_missing?: boolean;
+    limit?: number;
+  }) =>
+    request<{ job_id: string; status: string; params?: { target_count?: number } }>(
+      "/api/crawl-jobs/find-suppliers-bulk",
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
 
   generateOutreach: (supplierMatchId: number) =>
     request<OutreachDraft>(`/api/outreach/generate/${supplierMatchId}`, { method: "POST" }),

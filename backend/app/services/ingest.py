@@ -62,19 +62,25 @@ def ingest_solicitation_search(db: Session, source: str, result: dict[str, Any])
     return inserted
 
 
-def ingest_nsn_marketplace(db: Session, solicitation_id: int, result: dict[str, Any]) -> int:
+def _upsert_supplier_matches(
+    db: Session, solicitation_id: int, matched_nsn: str | None, suppliers: list[dict[str, Any]]
+) -> int:
     inserted = 0
-    matched_nsn = result.get("nsn")
-    for item in result.get("suppliers", []):
+    for item in suppliers:
         name = item.get("name")
         if not name:
             continue
 
-        supplier = (
-            db.query(models.Supplier)
-            .filter(models.Supplier.name == name, models.Supplier.url == item.get("url"))
-            .first()
-        )
+        # Prefer matching on CAGE code (a stable company identifier); fall
+        # back to name so suppliers without a CAGE still dedupe.
+        supplier_query = db.query(models.Supplier)
+        if item.get("cage_code"):
+            supplier = supplier_query.filter(
+                models.Supplier.cage_code == item.get("cage_code")
+            ).first()
+        else:
+            supplier = supplier_query.filter(models.Supplier.name == name).first()
+
         if not supplier:
             supplier = models.Supplier(
                 name=name,
@@ -86,15 +92,50 @@ def ingest_nsn_marketplace(db: Session, solicitation_id: int, result: dict[str, 
             db.add(supplier)
             db.flush()  # get supplier.id before creating the match
 
-        match = models.SupplierMatch(
-            solicitation_id=solicitation_id,
-            supplier_id=supplier.id,
-            matched_nsn=matched_nsn,
-            source_page_url=item.get("url"),
-            scraped_price=item.get("price"),
+        # Skip if this exact solicitation/supplier pair already exists.
+        exists = (
+            db.query(models.SupplierMatch)
+            .filter(
+                models.SupplierMatch.solicitation_id == solicitation_id,
+                models.SupplierMatch.supplier_id == supplier.id,
+            )
+            .first()
         )
-        db.add(match)
+        if exists:
+            continue
+
+        db.add(
+            models.SupplierMatch(
+                solicitation_id=solicitation_id,
+                supplier_id=supplier.id,
+                matched_nsn=matched_nsn,
+                source_page_url=item.get("url"),
+                scraped_price=item.get("price"),
+            )
+        )
         inserted += 1
 
+    return inserted
+
+
+def ingest_nsn_marketplace(db: Session, solicitation_id: int, result: dict[str, Any]) -> int:
+    inserted = _upsert_supplier_matches(
+        db, solicitation_id, result.get("nsn"), result.get("suppliers", [])
+    )
+    db.commit()
+    return inserted
+
+
+def ingest_nsn_marketplace_bulk(db: Session, result: dict[str, Any]) -> int:
+    """Ingests a bulk supplier lookup - each entry carries its own
+    solicitation_id, so one job fans matches out to many solicitations."""
+    inserted = 0
+    for entry in result.get("bulk", []):
+        solicitation_id = entry.get("solicitation_id")
+        if solicitation_id is None:
+            continue
+        inserted += _upsert_supplier_matches(
+            db, solicitation_id, entry.get("nsn"), entry.get("suppliers", [])
+        )
     db.commit()
     return inserted
