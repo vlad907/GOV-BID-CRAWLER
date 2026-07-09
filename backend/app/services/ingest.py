@@ -126,6 +126,38 @@ def ingest_nsn_marketplace(db: Session, solicitation_id: int, result: dict[str, 
     return inserted
 
 
+def _upsert_price_lookup(db: Session, solicitation_id: int, entry: dict[str, Any]) -> None:
+    lookup = (
+        db.query(models.PriceLookup)
+        .filter(models.PriceLookup.solicitation_id == solicitation_id)
+        .first()
+    )
+    fields = dict(source=entry.get("source"), stats=entry.get("stats"), awards=entry.get("awards"))
+    if lookup:
+        for key, value in fields.items():
+            setattr(lookup, key, value)
+    else:
+        db.add(models.PriceLookup(solicitation_id=solicitation_id, **fields))
+
+
+def ingest_price_history(db: Session, solicitation_id: int, result: dict[str, Any]) -> int:
+    _upsert_price_lookup(db, solicitation_id, result)
+    db.commit()
+    return 1
+
+
+def ingest_price_history_bulk(db: Session, result: dict[str, Any]) -> int:
+    count = 0
+    for entry in result.get("bulk", []):
+        solicitation_id = entry.get("solicitation_id")
+        if solicitation_id is None:
+            continue
+        _upsert_price_lookup(db, solicitation_id, entry)
+        count += 1
+    db.commit()
+    return count
+
+
 def ingest_nsn_marketplace_bulk(db: Session, result: dict[str, Any]) -> int:
     """Ingests a bulk supplier lookup - each entry carries its own
     solicitation_id, so one job fans matches out to many solicitations."""

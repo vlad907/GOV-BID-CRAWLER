@@ -104,31 +104,36 @@ export default function SolicitationsPage() {
     }
   };
 
-  const findSuppliersBulk = async () => {
+  const runBulk = async (kind: "suppliers" | "prices") => {
     setBulkSuppliers(true);
     bulkStartRef.current = Date.now();
-    setBulkMessage("Looking up manufacturers/suppliers for pulled solicitations…");
+    const noun = kind === "suppliers" ? "suppliers" : "historical prices";
+    setBulkMessage(`Looking up ${noun} for pulled solicitations…`);
     try {
-      const { job_id, params } = await api.findSuppliersBulk({
+      const filters = {
         source: browseSource || undefined,
         is_sdvosb: browseSdvosbOnly ? true : undefined,
         active_only: browseActiveOnly,
         only_missing: true,
-      });
+      };
+      const { job_id, params } =
+        kind === "suppliers"
+          ? await api.findSuppliersBulk(filters)
+          : await api.findPricesBulk(filters);
       const targetCount = params?.target_count ?? 0;
 
       const poll = async (): Promise<void> => {
         const job = await api.getCrawlJob(job_id);
         const secs = Math.round((Date.now() - bulkStartRef.current) / 1000);
         if (job.status === "done") {
-          setBulkMessage(`Supplier lookup finished in ${secs}s across ${targetCount} solicitations. Open one to see its matches.`);
+          setBulkMessage(`${noun[0].toUpperCase() + noun.slice(1)} lookup finished in ${secs}s across ${targetCount} solicitations.`);
           setBulkSuppliers(false);
           await load();
         } else if (job.status === "error") {
-          setBulkMessage(`Supplier lookup failed after ${secs}s: ${job.error}`);
+          setBulkMessage(`${noun} lookup failed after ${secs}s: ${job.error}`);
           setBulkSuppliers(false);
         } else {
-          setBulkMessage(`Looking up suppliers for ${targetCount} solicitations… ${secs}s elapsed`);
+          setBulkMessage(`Looking up ${noun} for ${targetCount} solicitations… ${secs}s elapsed`);
           setTimeout(poll, 2000);
         }
       };
@@ -203,14 +208,24 @@ export default function SolicitationsPage() {
             <h2 className="font-medium">2. Browse pulled solicitations ({solicitations.length})</h2>
             <p className="text-xs text-neutral-500">Filters what&apos;s already saved locally — doesn&apos;t touch the live sites.</p>
           </div>
-          <button
-            onClick={findSuppliersBulk}
-            disabled={bulkSuppliers || solicitations.length === 0}
-            className="shrink-0 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white px-3 py-2 rounded text-sm"
-            title="Look up manufacturers/CAGE codes for every filtered solicitation that doesn't have suppliers yet"
-          >
-            {bulkSuppliers ? "Finding suppliers…" : "Find suppliers (bulk)"}
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={() => runBulk("prices")}
+              disabled={bulkSuppliers || solicitations.length === 0}
+              className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white px-3 py-2 rounded text-sm"
+              title="Pull historical DLA award prices (or USASpending) for every filtered solicitation without a lookup yet"
+            >
+              {bulkSuppliers ? "Working…" : "Look up prices (bulk)"}
+            </button>
+            <button
+              onClick={() => runBulk("suppliers")}
+              disabled={bulkSuppliers || solicitations.length === 0}
+              className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white px-3 py-2 rounded text-sm"
+              title="Look up manufacturers/CAGE codes for every filtered solicitation without suppliers yet"
+            >
+              {bulkSuppliers ? "Working…" : "Find suppliers (bulk)"}
+            </button>
+          </div>
         </div>
         {bulkMessage && <p className="text-sm text-neutral-400">{bulkMessage}</p>}
         <div className="flex flex-wrap items-end gap-4">
@@ -258,11 +273,21 @@ export default function SolicitationsPage() {
                 {sol.nmr_may_apply && (
                   <span className="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded">NMR may apply</span>
                 )}
+                {sol.price_stats?.last != null && (
+                  <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded font-mono">
+                    last award ${sol.price_stats.last.toLocaleString()}
+                  </span>
+                )}
               </div>
-              <div className="text-sm text-neutral-400 flex gap-4">
+              <div className="text-sm text-neutral-400 flex gap-4 flex-wrap">
                 <span>NSN: {sol.nsn || "—"}</span>
                 <span>Qty: {sol.qty ?? "—"}</span>
                 <span>Closes: {sol.close_date ? new Date(sol.close_date).toLocaleDateString() : "—"}</span>
+                {sol.price_stats && sol.price_stats.count > 1 && (
+                  <span className="text-indigo-400">
+                    {sol.price_stats.count} awards · avg ${sol.price_stats.avg?.toLocaleString()}
+                  </span>
+                )}
                 <span className="text-neutral-600">{sol.solicitation_id}</span>
               </div>
             </Link>

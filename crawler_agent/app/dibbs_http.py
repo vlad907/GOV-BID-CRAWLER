@@ -27,6 +27,9 @@ from bs4 import BeautifulSoup
 
 BASE_URL = "https://www.dibbs.bsm.dla.mil"
 RFQ_URL = f"{BASE_URL}/RFQ/RfqRecs.aspx"
+AWARDS_URL = f"{BASE_URL}/Awards/AwdRecs.aspx"
+AWARDS_TABLE_ID = "ctl00_cph1_grdAwardSearch"
+PRICE_RE = re.compile(r"\$?([\d,]+\.\d{2})")
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/149.0 Safari/537.36"
@@ -67,17 +70,23 @@ class DibbsSession:
             )
         self._consented = True
 
-    def fetch_search_page(self, category: str, type_srch: str, value: str) -> str:
+    def _fetch(self, url: str, category: str, type_srch: str, value: str) -> str:
         if not self._consented:
             self._consent()
         params = {"category": category, "TypeSrch": type_srch, "Value": value}
-        resp = self.session.get(RFQ_URL, params=params, timeout=30)
+        resp = self.session.get(url, params=params, timeout=30)
         # Session can expire back to the consent page; redo the handshake once.
         if "dodwarning" in resp.url or "butAgree" in resp.text:
             self._consented = False
             self._consent()
-            resp = self.session.get(RFQ_URL, params=params, timeout=30)
+            resp = self.session.get(url, params=params, timeout=30)
         return resp.text
+
+    def fetch_search_page(self, category: str, type_srch: str, value: str) -> str:
+        return self._fetch(RFQ_URL, category, type_srch, value)
+
+    def fetch_awards_page(self, nsn_digits: str) -> str:
+        return self._fetch(AWARDS_URL, "nsn", "cq", nsn_digits)
 
 
 def _iso_date(mmddyyyy: str) -> str | None:
@@ -133,3 +142,41 @@ def parse_rfq_table(html: str) -> list[dict]:
         )
 
     return items
+
+
+def parse_awards_table(html: str) -> list[dict]:
+    """Historical DLA awards for an NSN. Verified column layout of
+    ctl00_cph1_grdAwardSearch:
+      # | Award/Basic Number | Delivery Order Number | Delivery Order Counter
+      | Last Mod Posting Date | Awardee CAGE Code | Total Contract Price
+      | Award Date | Posted Date | NSN/Part Number | Nomenclature
+      | Purchase Request | Solicitation
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table", id=AWARDS_TABLE_ID)
+    if table is None:
+        return []
+
+    awards = []
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 11:
+            continue  # header/pager/spacer
+        price_match = PRICE_RE.search(cells[6].get_text(" ", strip=True))
+        if not price_match:
+            continue
+
+        award_number = cells[1].find("a")
+        awards.append(
+            {
+                "award_number": (
+                    award_number.get_text(strip=True) if award_number else cells[1].get_text(strip=True)
+                ).split("»")[0].strip(),
+                "awardee_cage": cells[5].get_text(strip=True) or None,
+                "price": float(price_match.group(1).replace(",", "")),
+                "award_date": _iso_date(cells[7].get_text(strip=True)),
+                "nomenclature": cells[10].get_text(" ", strip=True) or None,
+            }
+        )
+
+    return awards

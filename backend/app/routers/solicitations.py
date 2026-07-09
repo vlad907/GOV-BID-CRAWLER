@@ -16,6 +16,9 @@ def _to_out(sol: models.Solicitation) -> schemas.SolicitationOut:
     unit_price = (sol.specs or {}).get("unit_price") if sol.specs else None
     estimated_value = unit_price * sol.qty if unit_price and sol.qty else None
     out.nmr_may_apply = nmr_may_apply(sol.set_aside_type, estimated_value)
+    if sol.price_lookup is not None:
+        out.price_stats = sol.price_lookup.stats
+        out.price_source = sol.price_lookup.source
     return out
 
 
@@ -74,3 +77,13 @@ def get_solicitation_bid_drafts(solicitation_id: int, db: Session = Depends(get_
     if not sol:
         raise HTTPException(status_code=404, detail="Solicitation not found")
     return sol.bid_drafts
+
+
+@router.get("/{solicitation_id}/price-lookup", response_model=schemas.PriceLookupOut)
+def get_solicitation_price_lookup(solicitation_id: int, db: Session = Depends(get_db)):
+    sol = db.get(models.Solicitation, solicitation_id)
+    if not sol:
+        raise HTTPException(status_code=404, detail="Solicitation not found")
+    if sol.price_lookup is None:
+        raise HTTPException(status_code=404, detail="No price lookup yet for this solicitation")
+    return sol.price_lookup

@@ -31,6 +31,33 @@ export interface Solicitation {
   status: string;
   created_at: string;
   nmr_may_apply: boolean;
+  price_stats?: PriceStats | null;
+  price_source?: string | null;
+}
+
+export interface PriceStats {
+  count: number;
+  low: number | null;
+  high: number | null;
+  avg: number | null;
+  median: number | null;
+  last: number | null;
+}
+
+export interface Award {
+  award_number?: string | null;
+  awardee_cage?: string | null;
+  awardee_name?: string | null;
+  price: number | null;
+  award_date?: string | null;
+  nomenclature?: string | null;
+}
+
+export interface PriceLookup {
+  source?: string | null;
+  stats?: PriceStats | null;
+  awards?: Award[] | null;
+  created_at: string;
 }
 
 export interface Supplier {
@@ -99,6 +126,7 @@ export const api = {
     request<SupplierMatch[]>(`/api/solicitations/${id}/matches`),
   getSolicitationBidDrafts: (id: number) =>
     request<BidDraft[]>(`/api/solicitations/${id}/bid-drafts`),
+  getPriceLookup: (id: number) => request<PriceLookup>(`/api/solicitations/${id}/price-lookup`),
 
   createCrawlJob: (payload: { type: string; params?: Record<string, unknown>; solicitation_id?: number }) =>
     request<{ job_id: string; status: string }>("/api/crawl-jobs", {
@@ -117,6 +145,17 @@ export const api = {
   }) =>
     request<{ job_id: string; status: string; params?: { target_count?: number } }>(
       "/api/crawl-jobs/find-suppliers-bulk",
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  findPricesBulk: (payload: {
+    source?: string;
+    is_sdvosb?: boolean;
+    active_only?: boolean;
+    only_missing?: boolean;
+    limit?: number;
+  }) =>
+    request<{ job_id: string; status: string; params?: { target_count?: number } }>(
+      "/api/crawl-jobs/find-prices-bulk",
       { method: "POST", body: JSON.stringify(payload) }
     ),
 

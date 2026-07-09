@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, BidDraft, Solicitation, SupplierMatch } from "@/lib/api";
+import { api, Award, BidDraft, PriceLookup, Solicitation, SupplierMatch } from "@/lib/api";
+import PriceAnalytics from "@/app/components/PriceAnalytics";
 
 export default function SolicitationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -12,7 +13,9 @@ export default function SolicitationDetailPage() {
   const [solicitation, setSolicitation] = useState<Solicitation | null>(null);
   const [matches, setMatches] = useState<SupplierMatch[]>([]);
   const [bidDrafts, setBidDrafts] = useState<BidDraft[]>([]);
+  const [priceLookup, setPriceLookup] = useState<PriceLookup | null>(null);
   const [crawling, setCrawling] = useState(false);
+  const [pricing, setPricing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [benchmarkPrice, setBenchmarkPrice] = useState("");
 
@@ -25,6 +28,11 @@ export default function SolicitationDetailPage() {
     setSolicitation(sol);
     setMatches(m);
     setBidDrafts(b);
+    try {
+      setPriceLookup(await api.getPriceLookup(solicitationId));
+    } catch {
+      setPriceLookup(null); // 404 = no lookup yet
+    }
   };
 
   useEffect(() => {
@@ -62,6 +70,36 @@ export default function SolicitationDetailPage() {
       setStatusMsg(err instanceof Error ? err.message : String(err));
     } finally {
       setCrawling(false);
+    }
+  };
+
+  const lookUpPrices = async () => {
+    setPricing(true);
+    setStatusMsg("Pulling historical award prices…");
+    try {
+      const { job_id } = await api.createCrawlJob({
+        type: "price_history",
+        params: solicitation?.nsn
+          ? { nsn: solicitation.nsn }
+          : { psc: (solicitation?.specs?.psc as string) ?? undefined },
+        solicitation_id: solicitationId,
+      });
+      const poll = async (): Promise<void> => {
+        const job = await api.getCrawlJob(job_id);
+        if (job.status === "done") {
+          setStatusMsg(null);
+          await load();
+        } else if (job.status === "error") {
+          setStatusMsg(`Price lookup failed: ${job.error}`);
+        } else {
+          setTimeout(poll, 2000);
+        }
+      };
+      await poll();
+    } catch (err) {
+      setStatusMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPricing(false);
     }
   };
 
@@ -128,6 +166,32 @@ export default function SolicitationDetailPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
+          <h2 className="font-medium">Historical award prices</h2>
+          <button
+            onClick={lookUpPrices}
+            disabled={pricing}
+            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-1.5 rounded text-sm"
+          >
+            {pricing ? "Looking up…" : priceLookup ? "Refresh prices" : "Look up prices"}
+          </button>
+        </div>
+        {priceLookup?.stats && priceLookup.stats.count > 0 ? (
+          <PriceAnalytics
+            stats={priceLookup.stats}
+            awards={(priceLookup.awards as Award[]) ?? []}
+            source={priceLookup.source}
+          />
+        ) : (
+          <p className="text-sm text-neutral-500">
+            {priceLookup
+              ? "No past awards found for this item."
+              : "No price history yet — click “Look up prices” to pull what the government paid before."}
+          </p>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
           <h2 className="font-medium">Candidate suppliers</h2>
           <button
             onClick={findSuppliers}
@@ -170,10 +234,14 @@ export default function SolicitationDetailPage() {
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Benchmark / last award price ($)</label>
             <input
-              className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 w-40"
+              className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 w-48"
               value={benchmarkPrice}
               onChange={(e) => setBenchmarkPrice(e.target.value)}
-              placeholder="optional"
+              placeholder={
+                priceLookup?.stats?.last != null
+                  ? `auto: $${priceLookup.stats.last.toLocaleString()}`
+                  : "optional"
+              }
             />
           </div>
           <button

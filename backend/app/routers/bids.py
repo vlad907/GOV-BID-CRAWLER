@@ -43,16 +43,21 @@ def create_bid_draft(payload: BidDraftCreate, db: Session = Depends(get_db)):
             detail="No cost basis available: provide cost_basis or add a priced supplier match first.",
         )
 
-    markup_pct, suggested_price = suggest_price(
-        cost_basis, payload.benchmark_award_price, payload.markup_pct
-    )
+    # Fall back to the historical award benchmark (last, else avg) when the
+    # caller didn't pass one explicitly.
+    benchmark = payload.benchmark_award_price
+    if benchmark is None and sol.price_lookup and sol.price_lookup.stats:
+        stats = sol.price_lookup.stats
+        benchmark = stats.get("last") or stats.get("avg")
+
+    markup_pct, suggested_price = suggest_price(cost_basis, benchmark, payload.markup_pct)
 
     draft = models.BidDraft(
         solicitation_id=payload.solicitation_id,
         cost_basis=cost_basis,
         suggested_markup_pct=markup_pct,
         suggested_price=suggested_price,
-        benchmark_award_price=payload.benchmark_award_price,
+        benchmark_award_price=benchmark,
         status="draft",
     )
     db.add(draft)

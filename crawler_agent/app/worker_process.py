@@ -14,12 +14,13 @@ from multiprocessing.context import SpawnContext
 from typing import Any
 
 from .browser import shutdown_driver
-from .jobs import dibbs_search, nsn_marketplace, sam_search
+from .jobs import dibbs_search, nsn_marketplace, price_history, sam_search
 
 HANDLERS = {
     "dibbs_search": dibbs_search.run,
     "sam_search": sam_search.run,
     "nsn_marketplace": nsn_marketplace.run,
+    "price_history": price_history.run,
 }
 
 

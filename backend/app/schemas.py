@@ -23,6 +23,17 @@ class SolicitationOut(BaseModel):
     status: str
     created_at: datetime
     nmr_may_apply: bool = False
+    price_stats: Optional[dict[str, Any]] = None
+    price_source: Optional[str] = None
+
+
+class PriceLookupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    source: Optional[str] = None
+    stats: Optional[dict[str, Any]] = None
+    awards: Optional[list[dict[str, Any]]] = None
+    created_at: datetime
 
 
 class SupplierOut(BaseModel):

@@ -41,6 +41,31 @@ class Solicitation(Base):
     bid_drafts = relationship(
         "BidDraft", back_populates="solicitation", cascade="all, delete-orphan"
     )
+    price_lookup = relationship(
+        "PriceLookup",
+        back_populates="solicitation",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class PriceLookup(Base):
+    """Latest historical-award-price lookup for a solicitation (DIBBS awards
+    for NSNs, USASpending for PSC-only). Stats are precomputed by the
+    crawler; awards keeps the raw rows for the detail view."""
+
+    __tablename__ = "price_lookups"
+
+    id = Column(Integer, primary_key=True)
+    solicitation_id = Column(
+        Integer, ForeignKey("solicitations.id"), nullable=False, unique=True
+    )
+    source = Column(String, nullable=True)  # "dibbs_awards" | "usaspending"
+    stats = Column(JSON, nullable=True)  # {count, low, high, avg, median, last}
+    awards = Column(JSON, nullable=True)  # list of raw award rows
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    solicitation = relationship("Solicitation", back_populates="price_lookup")
 
 
 class Supplier(Base):
