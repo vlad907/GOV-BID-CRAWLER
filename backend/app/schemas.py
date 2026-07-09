@@ -63,19 +63,34 @@ class SupplierMatchOut(BaseModel):
     supplier: SupplierOut
 
 
+class EmailReplyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    from_addr: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    extracted_price: Optional[float] = None
+    extracted_lead_time: Optional[str] = None
+    received_at: Optional[datetime] = None
+
+
 class OutreachDraftOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     supplier_match_id: int
+    recipient_email: Optional[str] = None
     draft_subject: str
     draft_body: str
     status: str
     sent_at: Optional[datetime] = None
     created_at: datetime
+    replies: list[EmailReplyOut] = []
 
 
 class OutreachDraftUpdate(BaseModel):
+    recipient_email: Optional[str] = None
     draft_subject: Optional[str] = None
     draft_body: Optional[str] = None
     status: Optional[str] = None

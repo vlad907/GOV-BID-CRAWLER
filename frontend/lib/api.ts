@@ -86,14 +86,26 @@ export interface SupplierMatch {
   supplier: Supplier;
 }
 
+export interface EmailReply {
+  id: number;
+  from_addr?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  extracted_price?: number | null;
+  extracted_lead_time?: string | null;
+  received_at?: string | null;
+}
+
 export interface OutreachDraft {
   id: number;
   supplier_match_id: number;
+  recipient_email?: string | null;
   draft_subject: string;
   draft_body: string;
   status: string;
   sent_at?: string | null;
   created_at: string;
+  replies: EmailReply[];
 }
 
 export interface BidDraft {
@@ -171,6 +183,10 @@ export const api = {
     request<OutreachDraft[]>(`/api/outreach${status ? `?status=${status}` : ""}`),
   updateOutreachDraft: (id: number, payload: Partial<OutreachDraft>) =>
     request<OutreachDraft>(`/api/outreach/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  sendOutreachDraft: (id: number) =>
+    request<OutreachDraft>(`/api/outreach/${id}/send`, { method: "POST" }),
+  syncReplies: () =>
+    request<{ new_replies: number; detail?: string }>("/api/outreach/sync-replies", { method: "POST" }),
 
   listBidDrafts: (status?: string) =>
     request<BidDraft[]>(`/api/bid-drafts${status ? `?status=${status}` : ""}`),

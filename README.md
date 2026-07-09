@@ -71,6 +71,31 @@ uvicorn app.main:app --host 0.0.0.0 --port 8100
 Then point `backend/.env`'s `CRAWLER_AGENT_URL` at the crawler machine's IP,
 e.g. `http://192.168.1.50:8100`.
 
+## Email setup (Gmail app password)
+
+Optional — only needed to send outreach and pull replies. Uses standard
+SMTP/IMAP with a Gmail **app password**, so there's no Google Cloud project
+or OAuth to deal with.
+
+1. On the Gmail account, turn on **2-Step Verification**
+   (myaccount.google.com → Security). Google won't issue an app password
+   without it.
+2. Go to myaccount.google.com/apppasswords, name it "Gov Bid", and copy the
+   16-character password it gives you (spaces don't matter).
+3. In `backend/.env` set:
+   ```
+   SMTP_USER=youraddress@gmail.com
+   SMTP_PASSWORD=that-16-char-app-password
+   EMAIL_FROM_NAME=Your Company
+   ```
+   (`SMTP_HOST`/`IMAP_HOST` already default to Gmail's servers.)
+4. Restart the backend.
+
+Then on the **Outreach** page: fill each draft's **To** field, click **Send**
+(nothing sends without that click), and use **Sync replies** to pull supplier
+responses — a quoted price and lead time are auto-extracted and shown on the
+reply. IMAP access is read-only; the app never deletes or moves your mail.
+
 ## Status / known gaps
 
 - The crawler agent's job queue, HTTP API, and Selenium driver management are

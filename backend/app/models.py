@@ -105,13 +105,35 @@ class OutreachDraft(Base):
 
     id = Column(Integer, primary_key=True)
     supplier_match_id = Column(Integer, ForeignKey("supplier_matches.id"), nullable=False)
+    recipient_email = Column(String, nullable=True)
     draft_subject = Column(String)
     draft_body = Column(Text)
     status = Column(String, default="draft")  # draft | sent | replied
+    message_id = Column(String, nullable=True, index=True)  # Message-ID we set when sending
     sent_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     supplier_match = relationship("SupplierMatch", back_populates="outreach_drafts")
+    replies = relationship(
+        "EmailReply", back_populates="outreach_draft", cascade="all, delete-orphan"
+    )
+
+
+class EmailReply(Base):
+    __tablename__ = "email_replies"
+
+    id = Column(Integer, primary_key=True)
+    outreach_draft_id = Column(Integer, ForeignKey("outreach_drafts.id"), nullable=False)
+    from_addr = Column(String, nullable=True)
+    subject = Column(String, nullable=True)
+    body = Column(Text, nullable=True)
+    imap_message_id = Column(String, nullable=True, index=True)  # dedupe on re-sync
+    extracted_price = Column(Float, nullable=True)
+    extracted_lead_time = Column(String, nullable=True)
+    received_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    outreach_draft = relationship("OutreachDraft", back_populates="replies")
 
 
 class BidDraft(Base):
