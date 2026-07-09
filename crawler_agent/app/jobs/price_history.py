@@ -31,16 +31,49 @@ def _get_session() -> DibbsSession:
     return _session
 
 
-def _stats(prices: list[float]) -> dict[str, Any]:
-    if not prices:
-        return {"count": 0, "low": None, "high": None, "avg": None, "median": None, "last": None}
+def _empty_stats() -> dict[str, Any]:
     return {
-        "count": len(prices),
-        "low": round(min(prices), 2),
-        "high": round(max(prices), 2),
-        "avg": round(mean(prices), 2),
-        "median": round(median(prices), 2),
-        "last": prices[0],  # awards come newest-first from DIBBS
+        "count": 0,
+        "delivery_order_count": 0,
+        "typical": None,
+        "low": None,
+        "high": None,
+        "avg": None,
+        "last": None,
+        "contract_ceiling": None,
+    }
+
+
+def _stats_from_awards(awards: list[dict]) -> dict[str, Any]:
+    """Builds a per-unit-ish price signal from DLA awards.
+
+    The parent "Award/Basic" IDIQ row is a contract ceiling, not a buy, so we
+    base the real numbers on Delivery Orders (actual recurring purchases) and
+    keep the ceiling only as separate context. Median is the headline
+    ("typical") since it ignores the occasional bulk-order outlier.
+    """
+    deliveries = [a["price"] for a in awards if a.get("award_type") == "delivery_order" and a.get("price")]
+    basics = [a["price"] for a in awards if a.get("award_type") == "basic" and a.get("price")]
+
+    # Fall back to all priced rows if this NSN has no delivery orders at all.
+    priced = deliveries if deliveries else [a["price"] for a in awards if a.get("price")]
+    if not priced:
+        return _empty_stats()
+
+    # last = most recent delivery-order price (awards come newest-first)
+    last = next(
+        (a["price"] for a in awards if a.get("award_type") == "delivery_order" and a.get("price")),
+        priced[0],
+    )
+    return {
+        "count": len(priced),
+        "delivery_order_count": len(deliveries),
+        "typical": round(median(priced), 2),
+        "low": round(min(priced), 2),
+        "high": round(max(priced), 2),
+        "avg": round(mean(priced), 2),
+        "last": last,
+        "contract_ceiling": round(max(basics), 2) if basics else None,
     }
 
 
@@ -52,7 +85,7 @@ def _dibbs_awards(nsn: str) -> dict[str, Any]:
         "nsn": nsn,
         "source": "dibbs_awards",
         "awards": awards,
-        "stats": _stats([a["price"] for a in awards if a.get("price")]),
+        "stats": _stats_from_awards(awards),
     }
 
 
@@ -83,12 +116,18 @@ def _usaspending_by_psc(psc: str) -> dict[str, Any]:
         for r in results
         if r.get("Award Amount")
     ]
-    return {
-        "psc": psc,
-        "source": "usaspending",
-        "awards": awards,
-        "stats": _stats([a["price"] for a in awards if a.get("price")]),
-    }
+    prices = [a["price"] for a in awards if a.get("price")]
+    stats = _empty_stats()
+    if prices:
+        stats.update(
+            count=len(prices),
+            typical=round(median(prices), 2),
+            low=round(min(prices), 2),
+            high=round(max(prices), 2),
+            avg=round(mean(prices), 2),
+            last=prices[0],
+        )
+    return {"psc": psc, "source": "usaspending", "awards": awards, "stats": stats}
 
 
 def _lookup(nsn: str | None, psc: str | None) -> dict[str, Any]:

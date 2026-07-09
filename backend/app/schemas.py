@@ -25,6 +25,8 @@ class SolicitationOut(BaseModel):
     nmr_may_apply: bool = False
     price_stats: Optional[dict[str, Any]] = None
     price_source: Optional[str] = None
+    focus_score: Optional[float] = None
+    focus_reason: Optional[str] = None
 
 
 class PriceLookupOut(BaseModel):

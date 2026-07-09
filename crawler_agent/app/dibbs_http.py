@@ -166,12 +166,23 @@ def parse_awards_table(html: str) -> list[dict]:
         if not price_match:
             continue
 
-        award_number = cells[1].find("a")
+        # A row is a real purchase (Delivery Order) when it has a DO number
+        # (cells[2]) or DO counter (cells[3]); rows without those are the
+        # parent Award/Basic IDIQ contract whose price is a ceiling, not a
+        # buy. Delivery-order prices are the actual recurring buy prices.
+        do_number = cells[2].get_text(" ", strip=True)
+        do_counter = cells[3].get_text(strip=True)
+        is_delivery_order = bool(do_counter or "delivery order" in do_number.lower())
+
+        if is_delivery_order:
+            number = do_number.split("»")[0].strip()
+        else:
+            number = cells[1].get_text(" ", strip=True).split("»")[0].strip()
+
         awards.append(
             {
-                "award_number": (
-                    award_number.get_text(strip=True) if award_number else cells[1].get_text(strip=True)
-                ).split("»")[0].strip(),
+                "award_number": number,
+                "award_type": "delivery_order" if is_delivery_order else "basic",
                 "awardee_cage": cells[5].get_text(strip=True) or None,
                 "price": float(price_match.group(1).replace(",", "")),
                 "award_date": _iso_date(cells[7].get_text(strip=True)),

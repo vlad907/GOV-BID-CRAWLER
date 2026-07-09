@@ -48,7 +48,8 @@ def create_bid_draft(payload: BidDraftCreate, db: Session = Depends(get_db)):
     benchmark = payload.benchmark_award_price
     if benchmark is None and sol.price_lookup and sol.price_lookup.stats:
         stats = sol.price_lookup.stats
-        benchmark = stats.get("last") or stats.get("avg")
+        # typical (median delivery-order price) is the robust unit benchmark
+        benchmark = stats.get("typical") or stats.get("last") or stats.get("avg")
 
     markup_pct, suggested_price = suggest_price(cost_basis, benchmark, payload.markup_pct)
 

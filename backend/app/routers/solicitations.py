@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..services.focus import focus_score
 from ..services.nmr import nmr_may_apply
 
 router = APIRouter(prefix="/api/solicitations", tags=["solicitations"])
@@ -19,6 +20,7 @@ def _to_out(sol: models.Solicitation) -> schemas.SolicitationOut:
     if sol.price_lookup is not None:
         out.price_stats = sol.price_lookup.stats
         out.price_source = sol.price_lookup.source
+        out.focus_score, out.focus_reason = focus_score(sol.price_lookup.stats, sol.qty)
     return out
 
 
@@ -30,6 +32,7 @@ def list_solicitations(
     nsn: Optional[str] = None,
     q: Optional[str] = None,
     active_only: bool = False,
+    sort: Optional[str] = None,  # "focus" to rank best bid targets first
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Solicitation)
@@ -52,7 +55,10 @@ def list_solicitations(
             | (models.Solicitation.close_date >= datetime.utcnow())
         )
     results = query.order_by(models.Solicitation.created_at.desc()).all()
-    return [_to_out(s) for s in results]
+    out = [_to_out(s) for s in results]
+    if sort == "focus":
+        out.sort(key=lambda s: (s.focus_score is None, -(s.focus_score or 0)))
+    return out
 
 
 @router.get("/{solicitation_id}", response_model=schemas.SolicitationOut)

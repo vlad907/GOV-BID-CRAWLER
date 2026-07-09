@@ -33,19 +33,24 @@ export interface Solicitation {
   nmr_may_apply: boolean;
   price_stats?: PriceStats | null;
   price_source?: string | null;
+  focus_score?: number | null;
+  focus_reason?: string | null;
 }
 
 export interface PriceStats {
   count: number;
+  delivery_order_count?: number | null;
+  typical: number | null;
   low: number | null;
   high: number | null;
   avg: number | null;
-  median: number | null;
   last: number | null;
+  contract_ceiling?: number | null;
 }
 
 export interface Award {
   award_number?: string | null;
+  award_type?: string | null; // "delivery_order" | "basic"
   awardee_cage?: string | null;
   awardee_name?: string | null;
   price: number | null;
@@ -110,6 +115,7 @@ export interface SolicitationFilters {
   nsn?: string;
   q?: string;
   active_only?: boolean;
+  sort?: string;
 }
 
 export const api = {

@@ -118,10 +118,22 @@ def _upsert_supplier_matches(
     return inserted
 
 
+def _save_part_numbers(db: Session, solicitation_id: int, part_numbers: list[str] | None) -> None:
+    if not part_numbers:
+        return
+    sol = db.get(models.Solicitation, solicitation_id)
+    if sol is None:
+        return
+    specs = dict(sol.specs or {})
+    specs["part_numbers"] = part_numbers
+    sol.specs = specs
+
+
 def ingest_nsn_marketplace(db: Session, solicitation_id: int, result: dict[str, Any]) -> int:
     inserted = _upsert_supplier_matches(
         db, solicitation_id, result.get("nsn"), result.get("suppliers", [])
     )
+    _save_part_numbers(db, solicitation_id, result.get("part_numbers"))
     db.commit()
     return inserted
 
@@ -169,5 +181,6 @@ def ingest_nsn_marketplace_bulk(db: Session, result: dict[str, Any]) -> int:
         inserted += _upsert_supplier_matches(
             db, solicitation_id, entry.get("nsn"), entry.get("suppliers", [])
         )
+        _save_part_numbers(db, solicitation_id, entry.get("part_numbers"))
     db.commit()
     return inserted

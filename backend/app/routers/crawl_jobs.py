@@ -86,11 +86,25 @@ def _submit_bulk_job(job_type: str, targets: list[dict], db: Session) -> models.
     return job
 
 
+def _empty_targets_error(filtered: list[models.Solicitation], with_nsn: int) -> str:
+    if not filtered:
+        return "No solicitations match the current filters."
+    if with_nsn == 0:
+        return (
+            f"None of the {len(filtered)} filtered solicitations have an NSN. This works on "
+            "DLA parts — set Source to DIBBS (SDVOSB set-asides live on SAM.gov and don't "
+            "carry NSNs)."
+        )
+    return "Everything matching already has results — untick 'only missing' to refresh."
+
+
 @router.post("/find-suppliers-bulk", response_model=schemas.CrawlJobOut)
 def find_suppliers_bulk(payload: BulkRequest, db: Session = Depends(get_db)):
     """Fans a supplier lookup across many NSN-bearing solicitations at once."""
+    filtered = _filtered_solicitations(payload, db)
+    with_nsn = sum(1 for s in filtered if s.nsn)
     targets = []
-    for sol in _filtered_solicitations(payload, db):
+    for sol in filtered:
         if not sol.nsn:
             continue
         if payload.only_missing and sol.supplier_matches:
@@ -100,10 +114,7 @@ def find_suppliers_bulk(payload: BulkRequest, db: Session = Depends(get_db)):
             break
 
     if not targets:
-        raise HTTPException(
-            status_code=400,
-            detail="No solicitations with an NSN need suppliers (try unchecking 'only missing').",
-        )
+        raise HTTPException(status_code=400, detail=_empty_targets_error(filtered, with_nsn))
     return _submit_bulk_job("nsn_marketplace", targets, db)
 
 
@@ -111,8 +122,10 @@ def find_suppliers_bulk(payload: BulkRequest, db: Session = Depends(get_db)):
 def find_prices_bulk(payload: BulkRequest, db: Session = Depends(get_db)):
     """Fans a historical-price lookup across many solicitations at once -
     by NSN (DIBBS awards) or, lacking one, by PSC (USASpending)."""
+    filtered = _filtered_solicitations(payload, db)
+    with_nsn = sum(1 for s in filtered if s.nsn)
     targets = []
-    for sol in _filtered_solicitations(payload, db):
+    for sol in filtered:
         if payload.only_missing and sol.price_lookup is not None:
             continue
         psc = (sol.specs or {}).get("psc") if sol.specs else None
@@ -123,10 +136,7 @@ def find_prices_bulk(payload: BulkRequest, db: Session = Depends(get_db)):
             break
 
     if not targets:
-        raise HTTPException(
-            status_code=400,
-            detail="No solicitations need a price lookup (try unchecking 'only missing').",
-        )
+        raise HTTPException(status_code=400, detail=_empty_targets_error(filtered, with_nsn))
     return _submit_bulk_job("price_history", targets, db)
 
 

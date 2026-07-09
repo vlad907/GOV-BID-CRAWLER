@@ -203,6 +203,22 @@ export default function SolicitationDetailPage() {
         </div>
         {statusMsg && <p className="text-sm text-neutral-400">{statusMsg}</p>}
 
+        {Array.isArray(solicitation.specs?.part_numbers) &&
+          (solicitation.specs.part_numbers as string[]).length > 0 && (
+            <div className="border border-neutral-800 rounded p-3">
+              <p className="text-xs text-neutral-400 mb-2">
+                Manufacturer part numbers — quote these at a distributor by CAGE + part number:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(solicitation.specs.part_numbers as string[]).map((pn) => (
+                  <span key={pn} className="text-xs bg-neutral-800 text-neutral-200 px-2 py-1 rounded font-mono">
+                    {pn}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
         {matches.length === 0 && <p className="text-sm text-neutral-500">No suppliers matched yet.</p>}
         {matches.map((match) => (
           <div key={match.id} className="border border-neutral-800 rounded p-3 flex justify-between items-center">
@@ -238,8 +254,8 @@ export default function SolicitationDetailPage() {
               value={benchmarkPrice}
               onChange={(e) => setBenchmarkPrice(e.target.value)}
               placeholder={
-                priceLookup?.stats?.last != null
-                  ? `auto: $${priceLookup.stats.last.toLocaleString()}`
+                priceLookup?.stats?.typical != null
+                  ? `auto: $${priceLookup.stats.typical.toLocaleString()}`
                   : "optional"
               }
             />

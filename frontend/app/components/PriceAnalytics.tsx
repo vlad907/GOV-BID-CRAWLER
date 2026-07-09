@@ -78,23 +78,34 @@ export default function PriceAnalytics({
   source?: string | null;
 }) {
   const isUsa = source === "usaspending";
+  // Chart/table the actual buys (delivery orders) when we have them, so the
+  // parent contract ceiling doesn't dwarf everything.
+  const deliveryOrders = awards.filter((a) => a.award_type === "delivery_order");
+  const chartAwards = deliveryOrders.length > 0 ? deliveryOrders : awards;
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <StatCard label="Last award" value={money(stats.last)} accent />
-        <StatCard label="Average" value={money(stats.avg)} />
-        <StatCard label="Median" value={money(stats.median)} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <StatCard label="Typical unit price" value={money(stats.typical)} accent />
+        <StatCard label="Most recent" value={money(stats.last)} />
         <StatCard label="Low" value={money(stats.low)} />
         <StatCard label="High" value={money(stats.high)} />
       </div>
 
-      <PriceBars awards={awards} />
+      <PriceBars awards={chartAwards} />
 
       <div className="text-xs text-neutral-500">
-        {stats.count} award{stats.count === 1 ? "" : "s"} ·{" "}
-        {isUsa
-          ? "Source: USASpending.gov (PSC-level contract totals — coarse, not unit prices)"
-          : "Source: DLA award history (per-NSN)"}
+        {isUsa ? (
+          <>Source: USASpending.gov — PSC-level contract totals, coarse and not unit prices.</>
+        ) : (
+          <>
+            Typical = median of {stats.delivery_order_count ?? 0} actual delivery-order buys.
+            {stats.contract_ceiling != null && (
+              <> Parent contract ceiling {money(stats.contract_ceiling)} excluded (not a real buy price).</>
+            )}{" "}
+            Source: DLA award history (per-NSN).
+          </>
+        )}
       </div>
 
       {awards.length > 0 && (
@@ -109,16 +120,25 @@ export default function PriceAnalytics({
               </tr>
             </thead>
             <tbody>
-              {awards.map((a, i) => (
-                <tr key={i} className="border-b border-neutral-900 last:border-0">
-                  <td className="px-3 py-2 text-neutral-300">{a.award_date ?? "—"}</td>
-                  <td className="px-3 py-2 text-neutral-300 font-mono text-xs">
-                    {a.awardee_name ?? a.awardee_cage ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-indigo-300">{money(a.price)}</td>
-                  <td className="px-3 py-2 text-neutral-500 font-mono text-xs">{a.award_number ?? "—"}</td>
-                </tr>
-              ))}
+              {awards.map((a, i) => {
+                const isBasic = a.award_type === "basic";
+                return (
+                  <tr
+                    key={i}
+                    className={`border-b border-neutral-900 last:border-0 ${isBasic ? "opacity-50" : ""}`}
+                  >
+                    <td className="px-3 py-2 text-neutral-300">{a.award_date ?? "—"}</td>
+                    <td className="px-3 py-2 text-neutral-300 font-mono text-xs">
+                      {a.awardee_name ?? a.awardee_cage ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-indigo-300">
+                      {money(a.price)}
+                      {isBasic && <span className="ml-1 text-[10px] text-neutral-500">ceiling</span>}
+                    </td>
+                    <td className="px-3 py-2 text-neutral-500 font-mono text-xs">{a.award_number ?? "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

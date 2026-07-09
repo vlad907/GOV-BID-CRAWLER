@@ -31,6 +31,7 @@ export default function SolicitationsPage() {
   const [browseNsn, setBrowseNsn] = useState("");
   const [browseSdvosbOnly, setBrowseSdvosbOnly] = useState(false);
   const [browseActiveOnly, setBrowseActiveOnly] = useState(true);
+  const [browseSort, setBrowseSort] = useState("");
   const [solicitations, setSolicitations] = useState<Solicitation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export default function SolicitationsPage() {
         nsn: browseNsn || undefined,
         is_sdvosb: browseSdvosbOnly ? true : undefined,
         active_only: browseActiveOnly ? true : undefined,
+        sort: browseSort || undefined,
       });
       setSolicitations(data);
     } catch (err) {
@@ -59,7 +61,7 @@ export default function SolicitationsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browseSource, browseNsn, browseSdvosbOnly, browseActiveOnly]);
+  }, [browseSource, browseNsn, browseSdvosbOnly, browseActiveOnly, browseSort]);
 
   const runCrawl = async (type: "sam_search" | "dibbs_search") => {
     const source = type === "sam_search" ? "sam" : "dibbs";
@@ -249,7 +251,21 @@ export default function SolicitationsPage() {
             <input type="checkbox" checked={browseActiveOnly} onChange={(e) => setBrowseActiveOnly(e.target.checked)} />
             Hide expired
           </label>
+          <div className="flex flex-col gap-1">
+            <label className={labelCls}>Sort</label>
+            <select className={inputCls} value={browseSort} onChange={(e) => setBrowseSort(e.target.value)}>
+              <option value="">Newest</option>
+              <option value="focus">Focus — best bid targets</option>
+            </select>
+          </div>
         </div>
+        {browseSort === "focus" && (
+          <p className="text-xs text-neutral-500">
+            Ranked by a focus score: proven repeat-buy parts with a stable, workable unit price
+            (predictable margin). Only parts with a price lookup are scored — run “Look up prices”
+            first.
+          </p>
+        )}
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         {loading && <p className="text-sm text-neutral-400">Loading…</p>}
@@ -263,6 +279,14 @@ export default function SolicitationsPage() {
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs uppercase text-neutral-500">{sol.source}</span>
+                {sol.focus_score != null && (
+                  <span
+                    className="text-xs bg-violet-800 text-violet-100 px-2 py-0.5 rounded font-mono"
+                    title={sol.focus_reason ?? undefined}
+                  >
+                    focus {sol.focus_score}
+                  </span>
+                )}
                 <span className="font-medium">{sol.title || sol.solicitation_id}</span>
                 {sol.is_sdvosb && (
                   <span className="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded">SDVOSB</span>
@@ -273,9 +297,9 @@ export default function SolicitationsPage() {
                 {sol.nmr_may_apply && (
                   <span className="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded">NMR may apply</span>
                 )}
-                {sol.price_stats?.last != null && (
+                {sol.price_stats?.typical != null && (
                   <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded font-mono">
-                    last award ${sol.price_stats.last.toLocaleString()}
+                    typical ${sol.price_stats.typical.toLocaleString()}
                   </span>
                 )}
               </div>
@@ -283,9 +307,10 @@ export default function SolicitationsPage() {
                 <span>NSN: {sol.nsn || "—"}</span>
                 <span>Qty: {sol.qty ?? "—"}</span>
                 <span>Closes: {sol.close_date ? new Date(sol.close_date).toLocaleDateString() : "—"}</span>
-                {sol.price_stats && sol.price_stats.count > 1 && (
+                {sol.price_stats && (sol.price_stats.delivery_order_count ?? 0) > 1 && (
                   <span className="text-indigo-400">
-                    {sol.price_stats.count} awards · avg ${sol.price_stats.avg?.toLocaleString()}
+                    {sol.price_stats.delivery_order_count} past buys · ${sol.price_stats.low?.toLocaleString()}–$
+                    {sol.price_stats.high?.toLocaleString()}
                   </span>
                 )}
                 <span className="text-neutral-600">{sol.solicitation_id}</span>
