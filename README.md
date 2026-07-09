@@ -22,7 +22,29 @@ search are both public — the crawler agent just drives a real browser through
 the public search pages (clicking past DIBBS's DoD consent banner where
 needed) rather than calling an authenticated API.
 
-## Running locally
+## Running with Docker (recommended — one command)
+
+Runs the backend and frontend together, no juggling terminals:
+
+```bash
+cp .env.example .env      # set CRAWL_AGENT_IP to your crawl machine's LAN IP
+docker compose up         # add --build the first time or after dep changes
+```
+
+- Frontend: http://localhost:3000
+- Backend:  http://localhost:8000
+- Source is bind-mounted, so edits hot-reload without a rebuild.
+- The SQLite DB stays at `backend/govbid.db` on the host, so pulled
+  solicitations persist across restarts.
+
+The crawler agent still runs separately on the Ubuntu box (see
+`crawler_agent/README.md`); the containers reach it via `crawl.local:8100`,
+pinned to `CRAWL_AGENT_IP` since containers can't resolve mDNS `.local`
+names. If hot reload ever feels stale on macOS, add
+`WATCHPACK_POLLING=true` under the frontend `environment:` in
+`docker-compose.yml`.
+
+## Running locally (without Docker)
 
 ```bash
 # backend

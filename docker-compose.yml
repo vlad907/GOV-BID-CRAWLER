@@ -1,0 +1,39 @@
+# One command runs both the backend and frontend:  docker compose up
+#
+# The crawler agent is NOT here on purpose - it runs on the separate Ubuntu
+# machine on your LAN. These two containers just need to reach it, which they
+# do via the crawl.local host mapping below.
+services:
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind-mount source for hot reload; this also keeps the SQLite DB
+      # (backend/govbid.db) on the host so your pulled solicitations persist.
+      - ./backend:/app
+    environment:
+      - CRAWLER_AGENT_URL=http://crawl.local:8100
+      - DATABASE_URL=sqlite:///./govbid.db
+    # Containers can't resolve .local mDNS names, so pin crawl.local to the
+    # crawl machine's IP. Override in a root .env if DHCP changes it (better:
+    # reserve the IP in your router).
+    extra_hosts:
+      - "crawl.local:${CRAWL_AGENT_IP:-192.168.1.205}"
+
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume so the container's own (Linux) node_modules is used,
+      # not the host's macOS one.
+      - /app/node_modules
+    environment:
+      # Read by the browser, so it points at the host-published backend port.
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
